@@ -34,13 +34,13 @@ const corsOpts = {
 app.use(cors(corsOpts));
 
 app.post("/", jsonParser, async (req, res) => {
-    const getHashlist = async () => {
+    const getHashlistAndAccounts = async () => {
         const creator = req.body.creator;
         const projectName = req.body.projectName;
         const projectFolder = "./hashlists";
 
         const endpoint =
-            "https://divine-aged-glitter.solana-mainnet.quiknode.pro/f592aec8c88056067246bcd39a76ea2074955fb3/";
+            process.env.RPC || "https://divine-aged-glitter.solana-mainnet.quiknode.pro/f592aec8c88056067246bcd39a76ea2074955fb3/";
         const connection = new Connection(endpoint, "confirmed");
 
         const data = {
@@ -69,10 +69,12 @@ app.post("/", jsonParser, async (req, res) => {
             ]
         };
 
-        async function saveHashList(projectName, response) {
+        async function saveTokenData(projectName, response) {
             const projectPath = path.join(projectFolder, projectName);
-            const decodedAccountsPath = path.join(projectPath, "decoded accounts");
+            const decodedAccountsPath = path.join(projectPath, "encodedAccounts");
             await fs.promises.mkdir(decodedAccountsPath, { recursive: true });
+
+            console.log(response.data)
 
             const pubkeys = response.data.result.map((item) => item.pubkey);
 
@@ -107,7 +109,7 @@ app.post("/", jsonParser, async (req, res) => {
             axios
                 .post(endpoint, data)
                 .then(async function (response) {
-                    await saveHashList(projectName, response);
+                    await saveTokenData(projectName, response);
                 })
                 .catch((err) => {
                     console.log(err);
@@ -115,7 +117,7 @@ app.post("/", jsonParser, async (req, res) => {
                 });
         }
     };
-    await getHashlist();
+    await getHashlistAndAccounts();
 });
 
 
