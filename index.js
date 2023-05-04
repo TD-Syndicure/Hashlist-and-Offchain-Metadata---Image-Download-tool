@@ -1,8 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { PublicKey, Connection } from "@solana/web3.js";
-// import { Metaplex } from "@metaplex-foundation/js";
-// import * as anchor from "@project-serum/anchor";
 import decodeMetadata from "./metadataDecode.js";
 import express from "express";
 import bodyParser from "body-parser";
@@ -81,7 +79,7 @@ app.post("/", jsonParser, async (req, res) => {
 
             const metadataPubkey = response.data.result.map((item) => item.pubkey);
 
-            const metadataAccountListFileName = `${projectName}MetadataAccountList.json`;
+            const metadataAccountListFileName = `${projectName}_MetadataAccountList.json`;
             const metadataAccountListPath = path.join(
                 projectPath,
                 metadataAccountListFileName
@@ -94,7 +92,6 @@ app.post("/", jsonParser, async (req, res) => {
 
             console.log(`Metadata token is saved to ${metadataAccountListPath}`);
 
-            // Decode account data
             for (const [index, metadataTokenAddress] of metadataPubkey.entries()) {
                 try {
                     const encodedMetadataAccount = await connection.getParsedAccountInfo(
@@ -121,7 +118,6 @@ app.post("/", jsonParser, async (req, res) => {
             }
             await console.log("Fetching encoded metadata completed.")
 
-            // Decode onchain metadata
             const decodedMetadataAccountsPath = path.join(projectPath, "decodedMetadata");
             await fs.promises.mkdir(decodedMetadataAccountsPath, { recursive: true });
 
@@ -152,34 +148,62 @@ app.post("/", jsonParser, async (req, res) => {
             }
             await console.log("Decoding metadata completed.")
 
+            const tokenHashList = [];
+
+            console.log('Generating token hash list...');
+
+            const decodedMetadataFiles = await fs.promises.readdir(decodedMetadataAccountsPath);
+
+            for (const fileName of decodedMetadataFiles) {
+                const filePath = path.join(decodedMetadataAccountsPath, fileName);
+                const fileContents = await fs.promises.readFile(filePath);
+                const decodedMetadata = JSON.parse(fileContents);
+                tokenHashList.push(decodedMetadata.mint);
+                console.log(decodedMetadata.mint)
+            }
+
+            const tokenHashListPath = path.join(projectPath, `${projectName}_tokenAddressHashlist.json`);
+            await fs.promises.writeFile(tokenHashListPath, JSON.stringify(tokenHashList), { flag: "w" });
+            await console.log(`Token hash list saved to ${tokenHashListPath}`);
+
             const metadataJsonFiles = path.join(projectPath, "offChainMetadata");
             await fs.promises.mkdir(metadataJsonFiles, { recursive: true });
 
             const imageFiles = path.join(projectPath, "images");
             await fs.promises.mkdir(imageFiles, { recursive: true });
 
-            fs.readdirSync('decodedMetadata').forEach((filename) => {
+            const maxRetries = 5;
+
+            fs.readdirSync(path.join(
+                projectPath,
+                "decodedMetadata"
+            )).forEach((filename) => {
                 if (path.extname(filename) === '.json') {
-                    const jsonData = JSON.parse(fs.readFileSync(path.join('decodedMetadata', filename)));
+                    const jsonData = JSON.parse(fs.readFileSync(path.join(
+                        projectPath,
+                        "decodedMetadata"
+                        , filename)));
                     const mintId = path.basename(filename, '.json');
-                    const name = jsonData['data']['name'].replace(/\u0000/g, '');
-                    const uri = jsonData['data']['uri'].replace(/\u0000/g, '');
+                    const name = jsonData['data']['name'].replace(/[^a-zA-Z0-9]/g, '_');
+                    const uri = jsonData['data']['uri'];
                     fetchMintData(mintId, name, uri);
                 }
             });
 
             async function fetchMintData(mintId, name, uri) {
                 let jsonData = null;
-                // Fetch JSON data
+                console.log("Fetching offchain metadata...")
+
                 let retryCount = 0;
                 while (true) {
                     try {
                         const response = await axios.get(uri);
                         jsonData = response.data;
                         fs.writeFileSync(
-                            path.join('fetchedJson', `${name}.json`),
+                            path.join(metadataJsonFiles, `${mintId}.json`),
                             JSON.stringify(jsonData)
                         );
+                        console.log(`Offchain metadata saved to ${path.join(metadataJsonFiles, `${mintId}.json`)}`);
                         break;
                     } catch (error) {
                         if (retryCount < maxRetries) {
@@ -192,6 +216,8 @@ app.post("/", jsonParser, async (req, res) => {
                         }
                     }
                 }
+
+                await console.log
 
                 if (!jsonData) {
                     return;
@@ -218,13 +244,12 @@ app.post("/", jsonParser, async (req, res) => {
                 }
 
                 retryCount = 0;
+                console.log("Downloading image...")
                 while (true) {
                     try {
                         const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-                        fs.writeFileSync(
-                            path.join('fetchedimages', imageName),
-                            Buffer.from(response.data, 'binary')
-                        );
+                        const imageData = Buffer.from(response.data, 'binary');
+                        await fs.promises.writeFile(path.join(imageFiles, imageName), imageData);
                         break;
                     } catch (error) {
                         if (retryCount < maxRetries) {
@@ -237,8 +262,8 @@ app.post("/", jsonParser, async (req, res) => {
                         }
                     }
                 }
+                await console.log(`All files downloaded for ${projectName}`);
             }
-
         }
 
         if (req !== null) {
@@ -261,7 +286,6 @@ app.post("/", jsonParser, async (req, res) => {
     };
     await getHashlistAndAccounts();
 
-    res.status(200).send({ message: "Getting Data" });
 });
 
 app.listen(port, () => {

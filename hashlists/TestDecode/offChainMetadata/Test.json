@@ -1,0 +1,23 @@
+{
+    "name": "Test",
+    "symbol": "Test",
+    "description": "",
+    "seller_fee_basis_points": 0,
+    "image": "https://arweave.net/mZLlusBGblyzW99imhUhmqz-Uf5UHIv2xx2xcvoMzCA",
+    "attributes": [
+        {
+            "trait_type": "Test",
+            "value": "Test"
+        }
+    ],
+    "external_url": "",
+    "properties": {
+        "files": [
+            {
+                "uri": "https://arweave.net/mZLlusBGblyzW99imhUhmqz-Uf5UHIv2xx2xcvoMzCA",
+                "type": "image/png"
+            }
+        ],
+        "category": "image"
+    }
+}
